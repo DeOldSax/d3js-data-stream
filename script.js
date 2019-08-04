@@ -4,8 +4,10 @@ const rootSelector = "#myPlot"
 d3.json(url).then(input => {
     const allMargin = 50
     const margin = {top: 40, right: allMargin, bottom: 60, left: 70}
-    const clientWidth = d3.select(rootSelector).node().getBoundingClientRect().width
-    const clientHeight = d3.select(rootSelector).node().getBoundingClientRect().height
+
+    const clientRect = d3.select(rootSelector).node().getBoundingClientRect()
+    const clientWidth = clientRect.width
+    const clientHeight = clientRect.height
 
     const width = clientWidth - margin.left - margin.right
     const height = clientHeight - margin.top - margin.bottom
@@ -25,13 +27,8 @@ d3.json(url).then(input => {
     const overviewStreamPlot = new StreamPlot(input.data, width, height * 0.2, 4, height * 0.85, true)
     overviewStreamPlot.plot(svg)
     overviewStreamPlot.enableBrush()
+    overviewStreamPlot.onBrushed((selection) => detailStreamPlot.updatePlot(selection))
 })
-
-function updatePlot() {
-    const extent = d3.event.selection
-    const startX = extent[0][0]
-    const endX = extent[1][0]
-}
 
 class StreamPlot {
     constructor(data, width, height, dotRadius, topMargin) {
@@ -46,6 +43,28 @@ class StreamPlot {
         this.dots = null
         this.infobox = d3.select("body").append("div").attr("id", "infobox")
         this.rootG = null
+        this.xAxis = null
+        this.xAxisG = null
+        this.xScale = null
+        this.originalXScale = null
+        this.yScale = null
+
+        this.onBrushedCallback = null
+    }
+
+    onBrushed(f) {
+        this.onBrushedCallback = f
+    }
+
+    updatePlot(selection) {
+        const focusedExtent = selection.map(this.originalXScale.invert)
+        this.xScale.domain(focusedExtent)
+
+        this.xAxisG.call(this.xAxis)
+
+        this.dots
+            .attr("cx", record => this.xScale(record[2]))
+            .attr("cy", record => this.yScale(record[1]))
     }
 
     enableMetaInfo() {
@@ -62,7 +81,7 @@ class StreamPlot {
             
                 self.infobox
                     .attr("style", `left:${leftValue};top:${topValue}`)
-                    .html(`${record[0]}-${record[1]}-${date}`)
+                    .html(`[${record[0]}] ${record[1]}-${date}`)
 
                 self.dots
                     .attr("style", record => record[0] === id
@@ -80,7 +99,10 @@ class StreamPlot {
         this.rootG
             .call(d3.brushX()                   
                 .extent([ [0,-10], [this.width, this.height] ])
-                //.on("start end", updatePlot)
+                .on("brush end", () => {
+                    const selection = d3.event.selection || this.xScale.range()
+                    this.onBrushedCallback(selection)
+                })
             )
     }
 
@@ -99,25 +121,27 @@ class StreamPlot {
             .domain([0, this.ids.length])
             .range([0, 1])
     
-        const yScale =  d3.scalePoint()
+        this.yScale =  d3.scalePoint()
             .domain(this.categories)
             .range([0, this.height])
     
-        const xScale = d3.scaleTime()
+        this.xScale = d3.scaleTime()
             .domain(d3.extent(this.data, record => record[2]))
             .range([0, this.width])
+
+        this.originalXScale = this.xScale.copy()
     
-        const xAxis = d3.axisBottom(xScale)
+        this.xAxis = d3.axisBottom(this.xScale)
             .ticks(10)
             .tickFormat(d3.timeFormat("%b,%Y"))
     
-        const yAxis = d3.axisLeft(yScale)
-            .tickValues(yScale.domain())
+        const yAxis = d3.axisLeft(this.yScale)
+            .tickValues(this.yScale.domain())
     
-        this.rootG.append("g")
+        this.xAxisG = this.rootG.append("g")
             .attr("class", "x axis")
             .attr("transform", `translate(0, ${this.height})`)
-            .call(xAxis)
+            .call(this.xAxis)
     
         this.rootG.append("g")
             .attr("class", "y axis")
@@ -128,8 +152,8 @@ class StreamPlot {
         .enter().append("circle")
             .attr("class", "dot")
             .attr("fill", record => d3.interpolateSpectral(id2ColorScale(this.ids.indexOf(record[0]))))
-            .attr("cx", record => xScale(record[2]))
-            .attr("cy", record => yScale(record[1]))
+            .attr("cx", record => this.xScale(record[2]))
+            .attr("cy", record => this.yScale(record[1]))
             .attr("r", this.dotRadius)
     }
 }
