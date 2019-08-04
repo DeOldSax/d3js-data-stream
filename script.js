@@ -12,7 +12,7 @@ d3.json(url).then(input => {
     const width = clientWidth - margin.left - margin.right
     const height = clientHeight - margin.top - margin.bottom
 
-    d3.select(rootSelector).attr("style", "background:black")
+    d3.select(rootSelector).attr("style", "background:#111")
 
     let svg = d3.select(rootSelector).append("svg")
         .attr("width", clientWidth)
@@ -57,18 +57,13 @@ class StreamPlot {
     }
 
     updatePlot(selection) {
-        const transitionDuration = 150
         const focusedExtent = selection.map(this.originalXScale.invert)
-        this.xScale.domain(focusedExtent)
+        this.xScale.domain(focusedExtent).nice()
 
         this.xAxisG
-            .transition()
-            .duration(transitionDuration)
             .call(this.xAxis)
 
         this.dots
-            .transition()
-            .duration(transitionDuration)
             .attr("cx", record => this.xScale(record[2]))
             .attr("cy", record => this.yScale(record[1]))
     }
@@ -147,6 +142,7 @@ class StreamPlot {
         this.xScale = d3.scaleTime()
             .domain(d3.extent(this.data, record => record[2]))
             .range([0, this.width])
+            .nice()
 
         this.originalXScale = this.xScale.copy()
     
@@ -161,12 +157,26 @@ class StreamPlot {
             .attr("class", "x axis")
             .attr("transform", `translate(0, ${this.height})`)
             .call(this.xAxis)
+
+        const strokeWidth = 2
+        const clipMargin = this.dotRadius + strokeWidth
+
+        const clip = svg.append("defs").append("svg:clipPath")
+            .attr("id", "clip")
+            .append("svg:rect")
+            .attr("width", this.width - 2)
+            .attr("height", this.height + clipMargin * 2)
+            .attr("x", 2)
+            .attr("y", -clipMargin);
     
         this.rootG.append("g")
             .attr("class", "y axis")
             .call(yAxis)
+
+        var scatter = this.rootG.append('g')
+            .attr("clip-path", "url(#clip)")
     
-        this.dots = this.rootG.selectAll(".dot")
+        this.dots = scatter.selectAll(".dot")
             .data(this.data)
         .enter().append("circle")
             .attr("class", "dot")
