@@ -57,12 +57,18 @@ class StreamPlot {
     }
 
     updatePlot(selection) {
+        const transitionDuration = 150
         const focusedExtent = selection.map(this.originalXScale.invert)
         this.xScale.domain(focusedExtent)
 
-        this.xAxisG.call(this.xAxis)
+        this.xAxisG
+            .transition()
+            .duration(transitionDuration)
+            .call(this.xAxis)
 
         this.dots
+            .transition()
+            .duration(transitionDuration)
             .attr("cx", record => this.xScale(record[2]))
             .attr("cy", record => this.yScale(record[1]))
     }
@@ -84,14 +90,27 @@ class StreamPlot {
                     .html(`[${record[0]}] ${record[1]}-${date}`)
 
                 self.dots
+                    .transition()
+                    .duration(200)
                     .attr("style", record => record[0] === id
                         ? "visibility:visible"
                         : "opacity:0.2")
+                    .attr("r", record => record[0] == id
+                        ? self.dotRadius + 1
+                        : self.dotRadius - 1)
+                    .attr("stroke-width", record => record[0] == id ? 2 : 1)
+                    .attr("stroke", record => record[0] == id ? "white" : "black")
 
             })
             .on("mouseout", function() {
                 self.infobox.attr("style", "visibility:hidden")
-                self.dots.attr("style", "visibility:visible;opacity:1")
+                self.dots
+                    .transition()
+                    .duration(200)
+                    .attr("style", "visibility:visible;opacity:1")
+                    .attr("r", self.dotRadius)
+                    .attr("stroke-width", 1)
+                    .attr("stroke", "black")
             })
     }
 
@@ -155,5 +174,7 @@ class StreamPlot {
             .attr("cx", record => this.xScale(record[2]))
             .attr("cy", record => this.yScale(record[1]))
             .attr("r", this.dotRadius)
+            .attr("stroke-width", 1)
+            .attr("stroke", "black")
     }
 }
